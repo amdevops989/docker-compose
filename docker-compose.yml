@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # 1. The Database Layer with Active Probing
+  database-engine:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # The Healthcheck Gate
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s     # How often to check
+      timeout: 5s      # How long to wait for a response
+      retries: 5       # How many times to try before marking as unhealthy
+      start_period: 2s # Grace period for the database engine to spin up
+    networks:
+      - backend-isolated-mesh
+
+  # 2. The Backend API Service (Gated)
+  backend-api:
+    build: ./backend
+    command: npm run dev
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    # Upgraded Dependency Constraint
+    depends_on:
+      database-engine:
+        condition: service_healthy # The backend will freeze its boot sequence until the database is fully ready
+    networks:
+      - backend-isolated-mesh
+
+  # 3. The Client Facing UI
+  frontend-ui:
+    build: ./frontend
+    ports:
+      - "8099:80"
+    volumes:
+      - ./frontend/index.html:/usr/share/nginx/html/index.html
+    networks:
+      - backend-isolated-mesh
+
+volumes:
+  postgres_data:
+
+networks:
+  backend-isolated-mesh:
+    driver: bridge
