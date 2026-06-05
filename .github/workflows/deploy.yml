@@ -1,0 +1,106 @@
+name: "Monorepo Multi-Service Intelligent Pipeline"
+
+# Trigger analysis based on specific directory deltas
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/monorepo-pipeline.yml'
+
+jobs:
+  # ==========================================
+  # SERVICE JOB 1: BACKEND LIFE CYCLE
+  # ==========================================
+  build_backend:
+    name: "Backend Core Module"
+    runs-on: ubuntu-latest
+    # Gatekeeper: Only spin up this cloud runner if changes exist inside the backend folder
+    if: |
+      github.event_name == 'push' && 
+      (contains(github.event.head_commit.modified, 'backend/') || 
+       contains(github.event.head_commit.added, 'backend/') ||
+       github.run_number == 1)
+       
+    steps:
+      - name: "Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "Authenticate to Docker Hub"
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: "Build Backend Layer"
+        run: |
+          docker build -t "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest" ./backend
+
+      - name: "Scan Backend (Trivy)"
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest"
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
+
+      - name: "Publish Backend to Registry"
+        run: |
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest"
+
+  # ==========================================
+  # SERVICE JOB 2: FRONTEND LIFE CYCLE
+  # ==========================================
+  build_frontend:
+    name: "Frontend UI Module"
+    runs-on: ubuntu-latest
+    # Gatekeeper: Only spin up this cloud runner if changes exist inside the frontend folder
+    if: |
+      github.event_name == 'push' && 
+      (contains(github.event.head_commit.modified, 'frontend/') || 
+       contains(github.event.head_commit.added, 'frontend/') ||
+       github.run_number == 1)
+
+    steps:
+      - name: "Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "Authenticate to Docker Hub"
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: "Build Frontend Layer"
+        run: |
+          docker build -t "${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:latest" ./frontend
+
+      - name: "Publish Frontend to Registry"
+        run: |
+          docker push "${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:latest"
+
+  # ==========================================
+  # STAGE 3: UNIFIED CONTINUOUS DEPLOYMENT
+  # ==========================================
+  deploy_services:
+    name: "Orchestrated Cloud Deployment"
+    runs-on: ubuntu-latest
+    # The CD gate runs if EITHER or BOTH build jobs pass successfully
+    if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
+    needs: [build_backend, build_frontend]
+
+    steps:
+      - name: "Deploy over Secure SSH Tunnel"
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ~/production-app
+            echo "📥 Syncing changed execution images..."
+            docker compose pull
+            echo "🚀 Hot-swapping modified services..."
+            docker compose up -d --remove-orphans
