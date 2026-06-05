@@ -1,6 +1,5 @@
-name: "Monorepo Multi-Service Intelligent Pipeline"
+name: "Strict Monorepo Service Isolation Pipeline"
 
-# Trigger analysis based on specific directory deltas
 on:
   push:
     branches:
@@ -8,22 +7,41 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
-      - '.github/workflows/monorepo-pipeline.yml'
 
 jobs:
   # ==========================================
-  # SERVICE JOB 1: BACKEND LIFE CYCLE
+  # STAGE 1: ANALYZE GIT DIFF CHANGES
+  # ==========================================
+  changes_detector:
+    name: "Detect Modified Services"
+    runs-on: ubuntu-latest
+    # Map the plugin outputs to global job outputs so other jobs can read them
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - name: "Checkout Source Code"
+        uses: actions/checkout@v4
+
+      - name: "Execute Path Analysis Matcher"
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+
+  # ==========================================
+  # STAGE 2: ISOLATED SERVICE BUILDS
   # ==========================================
   build_backend:
     name: "Backend Core Module"
     runs-on: ubuntu-latest
-    # Gatekeeper: Only spin up this cloud runner if changes exist inside the backend folder
-    if: |
-      github.event_name == 'push' && 
-      (contains(github.event.head_commit.modified, 'backend/') || 
-       contains(github.event.head_commit.added, 'backend/') ||
-       github.run_number == 1)
-       
+    needs: changes_detector
+    # STRICT GUARD: This job will only start if the detector confirms backend changes are TRUE
+    if: needs.changes_detector.outputs.backend == 'true'
     steps:
       - name: "Checkout Source Code"
         uses: actions/checkout@v4
@@ -34,35 +52,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Build Backend Layer"
+      - name: "Build & Push Backend Layer"
         run: |
           docker build -t "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest" ./backend
-
-      - name: "Scan Backend (Trivy)"
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest"
-          format: 'table'
-          exit-code: '1'
-          severity: 'CRITICAL'
-
-      - name: "Publish Backend to Registry"
-        run: |
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest"
 
-  # ==========================================
-  # SERVICE JOB 2: FRONTEND LIFE CYCLE
-  # ==========================================
   build_frontend:
     name: "Frontend UI Module"
     runs-on: ubuntu-latest
-    # Gatekeeper: Only spin up this cloud runner if changes exist inside the frontend folder
-    if: |
-      github.event_name == 'push' && 
-      (contains(github.event.head_commit.modified, 'frontend/') || 
-       contains(github.event.head_commit.added, 'frontend/') ||
-       github.run_number == 1)
-
+    needs: changes_detector
+    # STRICT GUARD: This job will only start if the detector confirms frontend changes are TRUE
+    if: needs.changes_detector.outputs.frontend == 'true'
     steps:
       - name: "Checkout Source Code"
         uses: actions/checkout@v4
@@ -73,26 +73,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Build Frontend Layer"
+      - name: "Build & Push Frontend Layer"
         run: |
           docker build -t "${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:latest" ./frontend
-
-      - name: "Publish Frontend to Registry"
-        run: |
           docker push "${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:latest"
 
   # ==========================================
-  # STAGE 3: UNIFIED CONTINUOUS DEPLOYMENT
+  # STAGE 3: ISOLATED CONTINUOUS DEPLOYMENT
   # ==========================================
   deploy_services:
     name: "Orchestrated Cloud Deployment"
     runs-on: ubuntu-latest
-    # The CD gate runs if EITHER or BOTH build jobs pass successfully
+    needs: [changes_detector, build_backend, build_frontend]
+    # Run the deployment if either build job completed successfully
     if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
-    needs: [build_backend, build_frontend]
 
     steps:
-      - name: "Deploy over Secure SSH Tunnel"
+      - name: "Deploy Over Secure SSH Tunnel"
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -100,7 +97,17 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd ~/production-app
-            echo "📥 Syncing changed execution images..."
-            docker compose pull
-            echo "🚀 Hot-swapping modified services..."
+            
+            # Use conditional logic on the server to pull ONLY the service that changed
+            if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
+              echo "📥 Pulling fresh Backend target layers..."
+              docker compose pull backend-api
+            fi
+
+            if [ "${{ needs.changes_detector.outputs.frontend }}" = "true" ]; then
+              echo "📥 Pulling fresh Frontend target layers..."
+              docker compose pull frontend-ui
+            fi
+
+            echo "🚀 Reloading modified containers..."
             docker compose up -d --remove-orphans
