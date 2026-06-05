@@ -15,3 +15,9 @@ helm install loki grafana/loki \
   --set "loki.schemaConfig.configs[0].schema=v13" \
   --set "loki.schemaConfig.configs[0].index.prefix=index_" \
   --set "loki.schemaConfig.configs[0].index.period=24h"
+
+
+## isntalling before loki prometheus 
+helm install prometheus-stack prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace

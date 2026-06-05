@@ -5,7 +5,7 @@ metadata:
   labels:
     app: crud-backend
 spec:
-  replicas: 2 # High Availability: If one Pod crashes, the other handles traffic seamlessly
+  replicas: 2
   selector:
     matchLabels:
       app: crud-backend
@@ -16,15 +16,13 @@ spec:
     spec:
       containers:
         - name: backend-api
-          # Pulls the exact production image built by your GitHub Actions
           image: devopsflow999/crud-backend:latest 
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-          # Injecting environment parameters directly into the cluster runtime
           env:
             - name: DB_HOST
-              value: "postgres-service" # Will match your K8s database service name
+              value: "postgres-service"
             - name: DB_USER
               value: "devopsadmin"
             - name: DB_PASSWORD
@@ -36,11 +34,14 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend-service
+  labels:
+    app: crud-backend # Matches the ServiceMonitor selector.spec.selector.matchLabels
 spec:
   selector:
-    app: crud-backend
+    app: crud-backend # Matches the template.metadata.labels of your pods
   ports:
     - protocol: TCP
-      port: 3000      # The port exposing the service internally to the cluster
-      targetPort: 3000 # The port the container is listening on
-  type: ClusterIP    # Keeps the API hidden securely inside the private cluster network
+      port: 3000
+      targetPort: 3000
+      name: http-web # Matches the ServiceMonitor selector.spec.endpoints[0].port
+  type: ClusterIP
