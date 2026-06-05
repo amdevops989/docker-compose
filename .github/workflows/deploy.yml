@@ -81,33 +81,33 @@ jobs:
   # ==========================================
   # STAGE 3: ISOLATED CONTINUOUS DEPLOYMENT
   # ==========================================
-  deploy_services:
-    name: "Orchestrated Cloud Deployment"
-    runs-on: ubuntu-latest
-    needs: [changes_detector, build_backend, build_frontend]
-    # Run the deployment if either build job completed successfully
-    if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
+  # deploy_services:
+  #   name: "Orchestrated Cloud Deployment"
+  #   runs-on: ubuntu-latest
+  #   needs: [changes_detector, build_backend, build_frontend]
+  #   # Run the deployment if either build job completed successfully
+  #   if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
 
-    steps:
-      - name: "Deploy Over Secure SSH Tunnel"
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd ~/production-app
+  #   steps:
+  #     - name: "Deploy Over Secure SSH Tunnel"
+  #       uses: appleboy/ssh-action@v1.0.3
+  #       with:
+  #         host: ${{ secrets.SSH_HOST }}
+  #         username: ${{ secrets.SSH_USER }}
+  #         key: ${{ secrets.SSH_KEY }}
+  #         script: |
+  #           cd ~/production-app
             
-            # Use conditional logic on the server to pull ONLY the service that changed
-            if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
-              echo "📥 Pulling fresh Backend target layers..."
-              docker compose pull backend-api
-            fi
+  #           # Use conditional logic on the server to pull ONLY the service that changed
+  #           if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
+  #             echo "📥 Pulling fresh Backend target layers..."
+  #             docker compose pull backend-api
+  #           fi
 
-            if [ "${{ needs.changes_detector.outputs.frontend }}" = "true" ]; then
-              echo "📥 Pulling fresh Frontend target layers..."
-              docker compose pull frontend-ui
-            fi
+  #           if [ "${{ needs.changes_detector.outputs.frontend }}" = "true" ]; then
+  #             echo "📥 Pulling fresh Frontend target layers..."
+  #             docker compose pull frontend-ui
+  #           fi
 
-            echo "🚀 Reloading modified containers..."
-            docker compose up -d --remove-orphans
+  #           echo "🚀 Reloading modified containers..."
+  #           docker compose up -d --remove-orphans
