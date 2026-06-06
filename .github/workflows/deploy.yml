@@ -8,6 +8,10 @@ on:
       - 'backend/**'
       - 'frontend/**'
 
+# CRUCIAL FOR SINGLE REPO: Gives the built-in GITHUB_TOKEN write access to push changes back
+permissions:
+  contents: write
+
 jobs:
   # ==========================================
   # STAGE 1: ANALYZE GIT DIFF CHANGES
@@ -87,7 +91,6 @@ jobs:
           FULL_IMAGE_TAG="${DOCKER_USER}/${IMAGE_NAME}:${NEW_VERSION}"
           echo "🚀 Next targeted production tag calculated as: $NEW_VERSION"
           
-          # Set globally for step and map to job output context
           echo "NEW_CALCULATED_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
           
           echo "🔨 Compiling optimized layers..."
@@ -97,11 +100,9 @@ jobs:
           docker run -d -p "${TEST_PORT}:${TEST_PORT}" --name "$TEST_CONTAINER_NAME" "$FULL_IMAGE_TAG"
           sleep 3
           
-          # Hit the internal port inside the runner host environment
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${TEST_PORT}/" || echo "000")
           
           if [[ "$HTTP_STATUS" -eq 200 || "$HTTP_STATUS" -eq 404 ]]; then
-            # Note: 404 is acceptable for base API routing paths if your API lacks a "/" root handler
             echo "✅ [TEST PASSED] Container responded with valid HTTP status: $HTTP_STATUS"
             docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
           else
@@ -210,42 +211,42 @@ jobs:
           docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
   # ==========================================
-  # STAGE 3: GITOPS WRITE-BACK TO ARGO REPO
+  # STAGE 3: GITOPS WRITE-BACK (SAME REPO)
   # ==========================================
   gitops_update:
-    name: "Sync Image Tag to GitOps Repository"
+    name: "Sync Image Tag to GitOps Config"
     runs-on: ubuntu-latest
     needs: [changes_detector, build_backend, build_frontend]
     if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
     steps:
-      - name: "Checkout Manifest Repository"
+      - name: "Checkout Repository"
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITOPS_REPO_TOKEN }}
-          repository: 'your-org/argo-gitops-repo'
+          # FIXED: Uses the standard runner token, target repo line dropped
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Install Kustomize"
         uses: imranismail/setup-kustomize@v2
 
       - name: "Apply Tag Changes via Kustomize"
         run: |
-          cd gitops/kustomize/environments/prod
+          cd kustomize/environments/prod
           
-          # 1. Dynamically update Backend using the precise SemVer calculated output
+          # 1. Update Backend
           if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
             BACKEND_TAG="${{ needs.build_backend.outputs.NEW_TAG }}"
             kustomize edit set image ${{ secrets.DOCKERHUB_USERNAME }}/crud-backend=${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:${BACKEND_TAG}
           fi
           
-          # 2. Dynamically update Frontend using the precise SemVer calculated output
+          # 2. Update Frontend
           if [ "${{ needs.changes_detector.outputs.frontend }}" = "true" ]; then
             FRONTEND_TAG="${{ needs.build_frontend.outputs.NEW_TAG }}"
             kustomize edit set image ${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend=${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:${FRONTEND_TAG}
           fi
 
-      - name: "Commit and Push to GitOps Main Branch"
+      - name: "Commit and Push to Main"
         run: |
           git config --global user.name "GitOps-CI-Bot"
           git config --global user.email "ci-bot@company.com"
-          git commit -am "chore(prod): automated progressive delivery bump across modified modules"
+          git commit -am "chore(prod): automated image version bumps [skip ci]"
           git push origin main
