@@ -230,7 +230,7 @@ jobs:
 
       - name: "Apply Tag Changes via Kustomize"
         run: |
-          cd kustomize/environments/prod
+          cd gitops/kustomize/environments/prod
           
           # 1. Update Backend
           if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
