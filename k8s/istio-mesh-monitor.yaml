@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-proxies-monitor
+  namespace: monitoring # Deployed into your Prometheus namespace
+  labels:
+    release: prometheus-stack # Crucial: Forces the Helm Prometheus operator to pick up this scraper
+spec:
+  selector:
+    matchExpressions:
+      - key: istio
+        operator: Exists # Targets any pod or service managed by Istio
+  namespaceSelector:
+    any: true # Scan all namespaces (including default and istio-system)
+  endpoints:
+    - port: http-envoy-prom # Port 15020 where Envoy sidecars expose native mesh metrics
+      path: /stats/prometheus
+      interval: 15s
