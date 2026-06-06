@@ -1,0 +1,22 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}-vservice
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - default/crud-app-gateway # Connects to your existing gateway
+  http:
+    - name: primary
+      route:
+        - destination:
+            host: {{ .Release.Name }}-stable
+            port:
+              number: 80
+          weight: 100
+        - destination:
+            host: {{ .Release.Name }}-canary
+            port:
+              number: 80
+          weight: 0

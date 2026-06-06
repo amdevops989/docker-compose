@@ -1,0 +1,39 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: frontend-ui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+  strategy:
+    {{- if eq .Values.strategyType "Canary" }}
+    canary:
+      trafficRouting:
+        istio:
+          virtualService:
+            name: {{ .Release.Name }}-vservice
+            routes:
+              - primary
+      steps:
+        - setWeight: 20
+        - pause: { duration: 3m }
+        - setWeight: 50
+        - pause: { duration: 2m }
+    {{- else }}
+    template: {} # Fallback to standard rolling updates for dev
+    {{- end }}
