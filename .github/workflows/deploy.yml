@@ -15,7 +15,6 @@ jobs:
   changes_detector:
     name: "Detect Modified Services"
     runs-on: ubuntu-latest
-    # Map the plugin outputs to global job outputs so other jobs can read them
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
@@ -36,12 +35,22 @@ jobs:
   # ==========================================
   # STAGE 2: ISOLATED SERVICE BUILDS
   # ==========================================
+  
+  # --- BACKEND PIPELINE ---
   build_backend:
     name: "Backend Core Module"
     runs-on: ubuntu-latest
     needs: changes_detector
-    # STRICT GUARD: This job will only start if the detector confirms backend changes are TRUE
     if: needs.changes_detector.outputs.backend == 'true'
+    outputs:
+      NEW_TAG: ${{ env.NEW_CALCULATED_VERSION }}
+    env:
+      DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      IMAGE_NAME: "crud-backend"
+      REGISTRY_URL: "https://registry.hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/crud-backend/tags"
+      ENV_TARGET: "production"
+      TEST_PORT: "3000"
+      TEST_CONTAINER_NAME: "backend-smoke-test"
     steps:
       - name: "Checkout Source Code"
         uses: actions/checkout@v4
@@ -52,17 +61,84 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Build & Push Backend Layer"
+      - name: "Compile, Test, Scan & Push Backend Layer"
         run: |
-          docker build -t "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest" ./backend
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:latest"
+          cd backend
+          
+          echo "🌐 Querying Docker Hub for active production tags..."
+          API_RESPONSE=$(curl -s "$REGISTRY_URL")
+          IS_EMPTY=$(echo "$API_RESPONSE" | jq -r '.results | length')
+          
+          if [[ "$IS_EMPTY" -eq 0 || "$API_RESPONSE" == *"detail not found"* ]]; then
+            echo "⚠️ Repository empty or uninitialized. Initializing baseline tag at v1.0.0"
+            LATEST_TAG="v1.0.0"
+          else
+            LATEST_TAG=$(echo "$API_RESPONSE" | jq -r '.results[].name' | grep -v "latest" | head -n 1)
+            echo "📡 Live version discovered on Docker Hub: $LATEST_TAG"
+          fi
+          
+          CLEAN_TAG="${LATEST_TAG#v}"
+          MAJOR=$(echo "$CLEAN_TAG" | awk -F. '{print $1}')
+          MINOR=$(echo "$CLEAN_TAG" | awk -F. '{print $2}')
+          PATCH=$(echo "$CLEAN_TAG" | awk -F. '{print $3}')
+          
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          FULL_IMAGE_TAG="${DOCKER_USER}/${IMAGE_NAME}:${NEW_VERSION}"
+          echo "🚀 Next targeted production tag calculated as: $NEW_VERSION"
+          
+          # Set globally for step and map to job output context
+          echo "NEW_CALCULATED_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+          
+          echo "🔨 Compiling optimized layers..."
+          docker build --build-arg NODE_ENV="$ENV_TARGET" -t "$FULL_IMAGE_TAG" .
+          
+          echo "🧪 [TEST] Launching container smoke test..."
+          docker run -d -p "${TEST_PORT}:${TEST_PORT}" --name "$TEST_CONTAINER_NAME" "$FULL_IMAGE_TAG"
+          sleep 3
+          
+          # Hit the internal port inside the runner host environment
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${TEST_PORT}/" || echo "000")
+          
+          if [[ "$HTTP_STATUS" -eq 200 || "$HTTP_STATUS" -eq 404 ]]; then
+            # Note: 404 is acceptable for base API routing paths if your API lacks a "/" root handler
+            echo "✅ [TEST PASSED] Container responded with valid HTTP status: $HTTP_STATUS"
+            docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
+          else
+            echo "❌ [TEST FAILED] App returned HTTP status: $HTTP_STATUS" >&2
+            docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
+            exit 1
+          fi
+          
+          echo "🛡️ [SCAN] Scanning container layers with Trivy..."
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          if ! trivy image --exit-code 1 --severity CRITICAL "$FULL_IMAGE_TAG"; then
+            echo "❌ [SCAN FAILED] Critical vulnerabilities detected!" >&2
+            exit 1
+          fi
+          
+          echo "🏷️ Appending 'latest' marker..."
+          docker tag "$FULL_IMAGE_TAG" "${DOCKER_USER}/${IMAGE_NAME}:latest"
+          
+          echo "📤 Syncing layers to Docker Hub registry..."
+          docker push "$FULL_IMAGE_TAG"
+          docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
+  # --- FRONTEND PIPELINE ---
   build_frontend:
     name: "Frontend UI Module"
     runs-on: ubuntu-latest
     needs: changes_detector
-    # STRICT GUARD: This job will only start if the detector confirms frontend changes are TRUE
     if: needs.changes_detector.outputs.frontend == 'true'
+    outputs:
+      NEW_TAG: ${{ env.NEW_CALCULATED_VERSION }}
+    env:
+      DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+      IMAGE_NAME: "crud-frontend"
+      REGISTRY_URL: "https://registry.hub.docker.com/v2/repositories/${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend/tags"
+      ENV_TARGET: "production"
+      TEST_PORT: "80"
+      TEST_CONTAINER_NAME: "frontend-smoke-test"
     steps:
       - name: "Checkout Source Code"
         uses: actions/checkout@v4
@@ -73,41 +149,103 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: "Build & Push Frontend Layer"
+      - name: "Compile, Test, Scan & Push Frontend Layer"
         run: |
-          docker build -t "${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:latest" ./frontend
-          docker push "${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:latest"
+          cd frontend
+          
+          echo "🌐 Querying Docker Hub for active production tags..."
+          API_RESPONSE=$(curl -s "$REGISTRY_URL")
+          IS_EMPTY=$(echo "$API_RESPONSE" | jq -r '.results | length')
+          
+          if [[ "$IS_EMPTY" -eq 0 || "$API_RESPONSE" == *"detail not found"* ]]; then
+            echo "⚠️ Repository empty or uninitialized. Initializing baseline tag at v1.0.0"
+            LATEST_TAG="v1.0.0"
+          else
+            LATEST_TAG=$(echo "$API_RESPONSE" | jq -r '.results[].name' | grep -v "latest" | head -n 1)
+            echo "📡 Live version discovered on Docker Hub: $LATEST_TAG"
+          fi
+          
+          CLEAN_TAG="${LATEST_TAG#v}"
+          MAJOR=$(echo "$CLEAN_TAG" | awk -F. '{print $1}')
+          MINOR=$(echo "$CLEAN_TAG" | awk -F. '{print $2}')
+          PATCH=$(echo "$CLEAN_TAG" | awk -F. '{print $3}')
+          
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          FULL_IMAGE_TAG="${DOCKER_USER}/${IMAGE_NAME}:${NEW_VERSION}"
+          echo "🚀 Next targeted production tag calculated as: $NEW_VERSION"
+          
+          echo "NEW_CALCULATED_VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+          
+          echo "🔨 Compiling optimized layers..."
+          docker build --build-arg NODE_ENV="$ENV_TARGET" -t "$FULL_IMAGE_TAG" .
+          
+          echo "🧪 [TEST] Launching container smoke test..."
+          docker run -d -p "${TEST_PORT}:${TEST_PORT}" --name "$TEST_CONTAINER_NAME" "$FULL_IMAGE_TAG"
+          sleep 3
+          
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${TEST_PORT}/" || echo "000")
+          
+          if [[ "$HTTP_STATUS" -eq 200 ]]; then
+            echo "✅ [TEST PASSED] Container responded with HTTP 200 OK!"
+            docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
+          else
+            echo "❌ [TEST FAILED] App returned HTTP status: $HTTP_STATUS" >&2
+            docker rm -f "$TEST_CONTAINER_NAME" &> /dev/null
+            exit 1
+          fi
+          
+          echo "🛡️ [SCAN] Scanning container layers with Trivy..."
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          if ! trivy image --exit-code 1 --severity CRITICAL "$FULL_IMAGE_TAG"; then
+            echo "❌ [SCAN FAILED] Critical vulnerabilities detected!" >&2
+            exit 1
+          fi
+          
+          echo "🏷️ Appending 'latest' marker..."
+          docker tag "$FULL_IMAGE_TAG" "${DOCKER_USER}/${IMAGE_NAME}:latest"
+          
+          echo "📤 Syncing layers to Docker Hub registry..."
+          docker push "$FULL_IMAGE_TAG"
+          docker push "${DOCKER_USER}/${IMAGE_NAME}:latest"
 
   # ==========================================
-  # STAGE 3: ISOLATED CONTINUOUS DEPLOYMENT
+  # STAGE 3: GITOPS WRITE-BACK TO ARGO REPO
   # ==========================================
-  # deploy_services:
-  #   name: "Orchestrated Cloud Deployment"
-  #   runs-on: ubuntu-latest
-  #   needs: [changes_detector, build_backend, build_frontend]
-  #   # Run the deployment if either build job completed successfully
-  #   if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
+  gitops_update:
+    name: "Sync Image Tag to GitOps Repository"
+    runs-on: ubuntu-latest
+    needs: [changes_detector, build_backend, build_frontend]
+    if: always() && (needs.build_backend.result == 'success' || needs.build_frontend.result == 'success')
+    steps:
+      - name: "Checkout Manifest Repository"
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          repository: 'your-org/argo-gitops-repo'
 
-  #   steps:
-  #     - name: "Deploy Over Secure SSH Tunnel"
-  #       uses: appleboy/ssh-action@v1.0.3
-  #       with:
-  #         host: ${{ secrets.SSH_HOST }}
-  #         username: ${{ secrets.SSH_USER }}
-  #         key: ${{ secrets.SSH_KEY }}
-  #         script: |
-  #           cd ~/production-app
-            
-  #           # Use conditional logic on the server to pull ONLY the service that changed
-  #           if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
-  #             echo "📥 Pulling fresh Backend target layers..."
-  #             docker compose pull backend-api
-  #           fi
+      - name: "Install Kustomize"
+        uses: imranismail/setup-kustomize@v2
 
-  #           if [ "${{ needs.changes_detector.outputs.frontend }}" = "true" ]; then
-  #             echo "📥 Pulling fresh Frontend target layers..."
-  #             docker compose pull frontend-ui
-  #           fi
+      - name: "Apply Tag Changes via Kustomize"
+        run: |
+          cd gitops/kustomize/environments/prod
+          
+          # 1. Dynamically update Backend using the precise SemVer calculated output
+          if [ "${{ needs.changes_detector.outputs.backend }}" = "true" ]; then
+            BACKEND_TAG="${{ needs.build_backend.outputs.NEW_TAG }}"
+            kustomize edit set image ${{ secrets.DOCKERHUB_USERNAME }}/crud-backend=${{ secrets.DOCKERHUB_USERNAME }}/crud-backend:${BACKEND_TAG}
+          fi
+          
+          # 2. Dynamically update Frontend using the precise SemVer calculated output
+          if [ "${{ needs.changes_detector.outputs.frontend }}" = "true" ]; then
+            FRONTEND_TAG="${{ needs.build_frontend.outputs.NEW_TAG }}"
+            kustomize edit set image ${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend=${{ secrets.DOCKERHUB_USERNAME }}/crud-frontend:${FRONTEND_TAG}
+          fi
 
-  #           echo "🚀 Reloading modified containers..."
-  #           docker compose up -d --remove-orphans
+      - name: "Commit and Push to GitOps Main Branch"
+        run: |
+          git config --global user.name "GitOps-CI-Bot"
+          git config --global user.email "ci-bot@company.com"
+          git commit -am "chore(prod): automated progressive delivery bump across modified modules"
+          git push origin main
