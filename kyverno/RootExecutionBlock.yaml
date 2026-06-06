@@ -1,0 +1,24 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: harden-container-security
+  annotations:
+    policies.kyverno.io/title: Harden Container Security
+    policies.kyverno.io/category: Pod Security Standards
+spec:
+  validationFailureAction: Enforce
+  rules:
+  - name: validate-security-context
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    validate:
+      message: "Containers must run as non-root and have a read-only root filesystem."
+      pattern:
+        spec:
+          containers:
+          - securityContext:
+              runAsNonRoot: true
+              readOnlyRootFilesystem: true

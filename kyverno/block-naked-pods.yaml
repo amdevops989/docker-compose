@@ -1,0 +1,29 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: block-naked-pods
+  annotations:
+    policies.kyverno.io/title: Block Naked Pods
+    policies.kyverno.io/category: Stability
+spec:
+  validationFailureAction: Enforce # Enforce blocks the apply completely
+  background: true
+  rules:
+  - name: check-for-parent
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    exclude:
+      any:
+      - clusterRoles:
+        - cluster-admin # Allow cluster admins or controllers to spin up debug pods
+    validate:
+      message: "Creating bare Pods is forbidden. Use a Deployment, StatefulSet, or Job."
+      deny:
+        conditions:
+          all:
+          - key: "{{ request.object.metadata.ownerReferences[] || `[]` }}"
+            operator: Equals
+            value: []

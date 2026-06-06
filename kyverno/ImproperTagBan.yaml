@@ -1,0 +1,22 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ban-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Tag
+    policies.kyverno.io/category: Supply Chain
+spec:
+  validationFailureAction: Enforce
+  rules:
+  - name: validate-image-tag
+    match:
+      any:
+      - resources:
+          kinds:
+          - Pod
+    validate:
+      message: "Using the ':latest' image tag is forbidden. Use a specific version or a git SHA tag."
+      pattern:
+        spec:
+          containers:
+          - image: "!*:latest" # Blocks any image ending in :latest

@@ -1,0 +1,23 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-minimum-replicas
+  annotations:
+    policies.kyverno.io/title: Require Minimum Replicas in Production
+    policies.kyverno.io/category: Operations
+spec:
+  validationFailureAction: Enforce
+  rules:
+  - name: check-replicas
+    match:
+      any:
+      - resources:
+          namespaces:
+          - default # Add production/staging namespaces here
+          kinds:
+          - Deployment
+    validate:
+      message: "Production deployments must have at least 2 replicas for high availability."
+      pattern:
+        spec:
+          replicas: ">1"

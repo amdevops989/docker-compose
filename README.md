@@ -21,3 +21,13 @@ helm install loki grafana/loki \
 helm install prometheus-stack prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --create-namespace
+
+
+# 1. Add the Kyverno Helm repository
+helm repo add kyverno https://kyverno.github.io/kyverno/
+
+# 2. Update your local helm registry
+helm repo update
+
+# 3. Install Kyverno into its own namespace
+helm install kyverno kyverno/kyverno -n kyverno --create-namespace
