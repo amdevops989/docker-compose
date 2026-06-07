@@ -6,3 +6,7 @@ image:
   pullPolicy: Always
 
 strategyType: RollingUpdate # Default strategy
+
+# Prometheus configuration defaults
+prometheus:
+  address: "http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"
