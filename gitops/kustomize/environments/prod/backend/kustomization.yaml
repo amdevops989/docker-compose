@@ -19,4 +19,4 @@ helmCharts:
 images:
 - name: devopsflow999/crud-backend
   newName: devopsflow999/crud-backend
-  newTag: v..2
+  newTag: v1.0.1
