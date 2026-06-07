@@ -28,9 +28,9 @@ spec:
       trafficRouting:
         istio:
           virtualService:
-            name: {{ .Release.Name }}-vservice
+            name: {{ .Release.Name }}-frontend-vservice # Updated target
             routes:
-              - primary
+              - frontend-route
       steps:
         - setWeight: 20
         - pause: { duration: 3m }

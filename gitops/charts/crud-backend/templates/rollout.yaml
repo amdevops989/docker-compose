@@ -57,7 +57,7 @@ spec:
       trafficRouting:
         istio:
           virtualService:
-            name: {{ .Release.Name }}-mesh-vservice
+            name: {{ .Release.Name }}-backend-vservice # Updated target
             routes:
               - backend-route
       steps:
