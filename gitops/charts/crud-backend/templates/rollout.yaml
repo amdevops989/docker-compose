@@ -1,7 +1,13 @@
+# ==========================================================
+# DATABASE INFRASTRUCTURE CONFIGURATION CONFIGMAP & SECRET
+# ==========================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-backend-config
+  annotations:
+    # Forces Argo CD to ignore server-side generation disparities
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
 spec:
   data:
     POSTGRES_USER: "devopsadmin"
