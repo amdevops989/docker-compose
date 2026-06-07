@@ -92,7 +92,7 @@ spec:
         - pause: { duration: 3m }
         - analysis:
             templates:
-              - templateName: frontend-success-rates
+              - templateName: {{ .Release.Name }}-success-rate
         - setWeight: 50
         - pause: { duration: 2m }
     {{- else }}
