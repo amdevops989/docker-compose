@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: frontend-success-rate
+  namespace: production
+spec:
+  metrics:
+    # --------------------------------------------------------
+    # METRIC 1: HTTP Error Rate Check (Must be under 1%)
+    # --------------------------------------------------------
+    - name: http-error-rate
+      interval: 30s
+      successCondition: result[0] < 0.01
+      failureLimit: 1 # Abort instantly on the first bad match
+      provider:
+        prometheus:
+          # Replace with your actual cluster Prometheus service URL
+          address: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090 
+          query: |
+            sum(rate(istio_requests_total{reporter="destination",destination_service_name="frontend-prod-canary",response_code=~"5.*"}[1m]))
+            /
+            sum(rate(istio_requests_total{reporter="destination",destination_service_name="frontend-prod-canary"}[1m]))
+
+    # --------------------------------------------------------
+    # METRIC 2: HTTP Latency Check (P95 must be under 200ms)
+    # --------------------------------------------------------
+    - name: http-latency
+      interval: 30s
+      successCondition: result[0] < 0.200
+      failureLimit: 2 # Allow up to two brief spikes before backing out
+      provider:
+        prometheus:
+          address: http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            histogram_quantile(0.95, sum(rate(istio_request_duration_milliseconds_bucket{reporter="destination",destination_service_name="frontend-prod-canary"}[2m])) by (le)) / 1000
