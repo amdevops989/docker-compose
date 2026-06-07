@@ -6,13 +6,13 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-backend-config
   annotations:
-    # Forces Argo CD to ignore server-side generation disparities
     argocd.argoproj.io/compare-options: IgnoreExtraneous
 spec:
   data:
     POSTGRES_USER: "devopsadmin"
     POSTGRES_DB: "app_production"
-    DB_HOST: "database-engine"
+    # FIXED: Swapped out the short name for the cross-namespace FQDN
+    DB_HOST: "database-engine.production.svc.cluster.local"
 ---
 apiVersion: v1
 kind: Secret
