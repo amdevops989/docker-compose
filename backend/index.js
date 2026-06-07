@@ -76,7 +76,7 @@ app.delete('/items/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM inventory WHERE id = $1', [id]);
     
-    // Increment Prometheus counter on SUCCESS /
+    // Increment Prometheus counter on SUCCESS ///
     inventoryOperationsCounter.inc({ action: 'delete', status: 'success' });
     res.status(200).send({ message: 'Item deleted' });
   } catch (error) {
