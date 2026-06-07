@@ -42,13 +42,44 @@ spec:
     metadata:
       labels:
         app: {{ .Release.Name }}-backend
+    # Inside gitops/charts/crud-backend/templates/rollout.yaml
+spec:
+  template:
     spec:
       containers:
-        - name: backend-api
+        - name: backend-ui
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
           ports:
             - containerPort: 3000
+          env:
+            # 1. Read standard configs from your ConfigMap
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-backend-config
+                  key: DB_HOST
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-backend-config
+                  key: POSTGRES_USER
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-backend-config
+                  key: POSTGRES_DB
+
+            # 2. FIXED: Map the secret to BOTH possible variable targets your code might use
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-backend-secret
+                  key: POSTGRES_PASSWORD
   strategy:
     {{- if eq .Values.strategyType "Canary" }}
     canary:
