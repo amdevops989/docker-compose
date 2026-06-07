@@ -1,37 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backend-config
+spec:
+  data:
+    POSTGRES_USER: "devopsadmin"
+    POSTGRES_DB: "app_production"
+    DB_HOST: "database-engine"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-backend-secret
+type: Opaque
+stringData:
+  # Kubernetes automatically base64 encodes values placed in stringData
+  POSTGRES_PASSWORD: "secretpassword"
+
+---
+# ==========================================================
+# 1. FRONTEND APP ARCHITECTURE (Canary Rollout + Services)
+# ==========================================================
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
-  name: {{ .Release.Name }}-backend
+  name: {{ .Release.Name }}-frontend
   labels:
-    app: {{ .Release.Name }}-backend
+    app: {{ .Release.Name }}-frontend
 spec:
   replicas: {{ .Values.replicaCount | default 3 }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-backend
+      app: {{ .Release.Name }}-frontend
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-backend
+        app: {{ .Release.Name }}-frontend
     spec:
       containers:
-        - name: backend-core
-          # Adjust values mappings in your parent charts to match your backend registry location
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        - name: frontend-ui
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: Always
           ports:
-            - containerPort: 3000
+            - containerPort: 80
   strategy:
     {{- if eq .Values.strategyType "Canary" }}
     canary:
-      stableService: {{ .Release.Name }}-backend-stable
-      canaryService: {{ .Release.Name }}-backend-canary
+      stableService: {{ .Release.Name }}-frontend-stable
+      canaryService: {{ .Release.Name }}-frontend-canary
       trafficRouting:
         istio:
           virtualService:
             name: {{ .Release.Name }}-mesh-vservice
             routes:
-              - backend-route
+              - frontend-route
       steps:
         - setWeight: 20
         - pause: { duration: 3m }
