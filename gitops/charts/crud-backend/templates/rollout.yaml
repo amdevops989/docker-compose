@@ -44,15 +44,14 @@ spec:
         app: {{ .Release.Name }}-backend
     spec:
       containers:
-        - name: backend-ui
+        - name: backend-api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: Always
           ports:
-            - containerPort: 80
+            - containerPort: 3000
   strategy:
     {{- if eq .Values.strategyType "Canary" }}
     canary:
-      # FIXED: Added '-frontend-' to match your VirtualService and Service destinations
       stableService: {{ .Release.Name }}-stable
       canaryService: {{ .Release.Name }}-canary
       trafficRouting:
