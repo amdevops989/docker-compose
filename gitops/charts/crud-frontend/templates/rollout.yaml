@@ -34,7 +34,7 @@ spec:
               - frontend-route
       steps:
         - setWeight: 20
-        - pause: { duration: 3m }
+        - pause: { duration: 1m }
         - analysis:
             templates:
               - templateName: {{ .Release.Name }}-success-rate
