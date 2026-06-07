@@ -10,6 +10,7 @@ spec:
     # --------------------------------------------------------
     - name: http-error-rate
       interval: 30s
+      count: 3 # FIXED: Runs 3 times over 90 seconds, then finishes successfully if clean
       successCondition: result[0] < 0.01
       failureLimit: 1 
       provider:
@@ -25,6 +26,7 @@ spec:
     # --------------------------------------------------------
     - name: http-latency
       interval: 30s
+      count: 3 # FIXED: Runs 3 times over 90 seconds alongside the error check
       successCondition: result[0] < 0.200
       failureLimit: 2 
       provider:
