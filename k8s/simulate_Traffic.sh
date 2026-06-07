@@ -12,3 +12,16 @@ while true; do
   echo "📡 Traffic packet batch sent to cluster mesh..."
   sleep 0.5 # Pause for half a second before repeating
 done
+
+## Against Frontend only
+while true; do 
+  curl -s -o /dev/null -w "Status: %{http_code} | Time: %{time_total}s\n" http://ironstore.local/
+  sleep 0.5
+done
+
+## Against Backend 
+while true; do 
+  curl -s -o /dev/null -w "Backend Status: %{http_code} | Latency: %{time_total}s\n" http://ironstore.local/api/items
+  sleep 0.5
+done
+

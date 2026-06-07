@@ -102,3 +102,14 @@ chmod +x ./kubectl-argo-rollouts-linux-amd64
 sudo mv ./kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
 
 kubectl argo rollouts dashboard
+
+
+# 1. Add the Kasten Helm repository
+helm repo add kasten https://charts.kasten.io/
+
+# 2. Create the kasten-io namespace
+kubectl create namespace kasten-io
+
+# 3. Install K10 Free Edition
+helm install k10 kasten/k10 --namespace=kasten-io \
+  --set auth.tokenAuth.enabled=true
