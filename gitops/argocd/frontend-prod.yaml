@@ -9,8 +9,6 @@ spec:
     repoURL: 'https://github.com/amdevops989/docker-compose.git'
     targetRevision: HEAD
     path: gitops/kustomize/environments/prod
-    kustomize:
-      buildOptions: --enable-helm
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: production
