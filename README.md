@@ -143,3 +143,8 @@ Open your browser and navigate to:
 http://localhost:8080/k10/#/
 
 Paste the extracted token string into the authentication prompt to access the dashboard interface.
+
+
+kubectl create clusterrolebinding k10-default-admin-binding \
+  --clusterrole=cluster-admin \
+  --serviceaccount=kasten-io:default
