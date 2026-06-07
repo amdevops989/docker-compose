@@ -35,6 +35,9 @@ spec:
       steps:
         - setWeight: 20
         - pause: { duration: 3m }
+        - analysis:
+            templates:
+              - templateName: frontend-success-rates
         - setWeight: 50
         - pause: { duration: 2m }
     {{- else }}
