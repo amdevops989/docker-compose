@@ -1,0 +1,42 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}-mesh-vservice
+spec:
+  hosts:
+    - "ironstore.local"
+  gateways:
+    - {{ .Release.Name }}-gateway
+  http:
+    # --- A. BACKEND API ROUTE (Evaluated First via Prefix Matching) ---
+    - name: backend-route
+      match:
+        - uri:
+            prefix: /api
+      rewrite:
+        uri: / # Strips /api before passing it down to the node process
+      route:
+        - destination:
+            host: {{ .Release.Name }}-backend-stable
+            port:
+              number: 3000
+          weight: 100
+        - destination:
+            host: {{ .Release.Name }}-backend-canary
+            port:
+              number: 3000
+          weight: 0
+
+    # --- B. FALLBACK FRONTEND ROUTE (Serves UI Assets) ---
+    - name: frontend-route
+      route:
+        - destination:
+            host: {{ .Release.Name }}-frontend-stable
+            port:
+              number: 80
+          weight: 100
+        - destination:
+            host: {{ .Release.Name }}-frontend-canary
+            port:
+              number: 80
+          weight: 0

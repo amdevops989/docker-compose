@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ .Release.Name }}-backend
+  labels:
+    app: {{ .Release.Name }}-backend
+spec:
+  replicas: {{ .Values.replicaCount | default 3 }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-backend
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-backend
+    spec:
+      containers:
+        - name: backend-core
+          # Adjust values mappings in your parent charts to match your backend registry location
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+  strategy:
+    {{- if eq .Values.strategyType "Canary" }}
+    canary:
+      stableService: {{ .Release.Name }}-backend-stable
+      canaryService: {{ .Release.Name }}-backend-canary
+      trafficRouting:
+        istio:
+          virtualService:
+            name: {{ .Release.Name }}-mesh-vservice
+            routes:
+              - backend-route
+      steps:
+        - setWeight: 20
+        - pause: { duration: 3m }
+        - setWeight: 50
+        - pause: { duration: 2m }
+    {{- else }}
+    rollingUpdate: {} 
+    {{- end }}
