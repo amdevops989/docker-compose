@@ -23,6 +23,10 @@ helm install prometheus-stack prometheus-community/kube-prometheus-stack \
   --create-namespace
 
 
+## istio ! 
+
+istioctl install --set profile=demo -y 
+
 # 1. Add the Kyverno Helm repository
 helm repo add kyverno https://kyverno.github.io/kyverno/
 

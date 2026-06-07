@@ -6,9 +6,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/your-org/argo-gitops-repo.git'
+    repoURL: 'https://github.com/amdevops989/docker-compose.git'
     targetRevision: HEAD
-    path: kustomize/environments/prod
+    path: gitops/kustomize/environments/prod
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: production
@@ -16,4 +16,6 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    createNamespace: true
+    # FIXED: Wrapped inside syncOptions array layer
+    syncOptions:
+      - CreateNamespace=true

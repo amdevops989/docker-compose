@@ -16,4 +16,6 @@ spec:
     automated:
       prune: true     # Automatically removes deleted resources
       selfHeal: true  # Overwrites manual changes made via kubectl
-    createNamespace: true
+    # FIXED: Wrapped inside syncOptions array layer
+    syncOptions:
+      - CreateNamespace=true
