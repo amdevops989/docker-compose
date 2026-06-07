@@ -4,9 +4,9 @@ metadata:
   name: {{ .Release.Name }}-vservice
 spec:
   hosts:
-    - "*"
+    - "ironstore.local" # Linked to match your explicit domain route
   gateways:
-    - default/crud-app-gateway
+    - {{ .Release.Name }}-gateway # Binds directly to the custom gateway above
   http:
     - name: primary
       route:
