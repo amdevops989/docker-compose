@@ -17,12 +17,15 @@ spec:
       containers:
         - name: frontend-ui
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
           ports:
             - containerPort: 80
   strategy:
     {{- if eq .Values.strategyType "Canary" }}
     canary:
+      # FIXED: Declared explicit targets so the controller knows which services to modify
+      stableService: {{ .Release.Name }}-stable
+      canaryService: {{ .Release.Name }}-canary
       trafficRouting:
         istio:
           virtualService:
@@ -35,5 +38,6 @@ spec:
         - setWeight: 50
         - pause: { duration: 2m }
     {{- else }}
-    template: {} # Fallback to standard rolling updates for dev
+    # FIXED: Correct fallback key to invoke standard k8s rolling updates
+    rollingUpdate: {} 
     {{- end }}

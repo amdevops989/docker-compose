@@ -6,7 +6,7 @@ spec:
   hosts:
     - "*"
   gateways:
-    - default/crud-app-gateway # Connects to your existing gateway
+    - default/crud-app-gateway
   http:
     - name: primary
       route:
