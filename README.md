@@ -94,3 +94,11 @@ kubectl get pods -n argocd ──> All pods should be Running.
 kubectl get pods -n argo-rollouts ──> The controller pod should be Running.
 
 Once both systems are active, your cluster infrastructure is ready to accept the Application manifests we just wrote! Let me know when they're all green.
+## installing argo rollout dashboard
+For Linux:
+Bash
+curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+chmod +x ./kubectl-argo-rollouts-linux-amd64
+sudo mv ./kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+
+kubectl argo rollouts dashboard
