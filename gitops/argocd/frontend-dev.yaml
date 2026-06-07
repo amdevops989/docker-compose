@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/your-org/argo-gitops-repo.git' # Replace with your real repo URL
     targetRevision: HEAD # Tracks the main branch
-    path: kustomize/environments/dev # Points directly to your dev folder
+    path: kustomize/environments/dev/frontend # Points directly to your dev folder
   destination:
     server: 'https://kubernetes.default.svc' # Deploys to your local cluster
     namespace: dev

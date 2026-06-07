@@ -7,16 +7,16 @@ helmGlobals:
   chartHome: ../../../charts
 
 helmCharts:
-- name: crud-frontend
-  releaseName: frontend-prod
+- name: crud-backend
+  releaseName: backend-prod
   valuesInline:
     image:
-      repository: devopsflow999/crud-frontend
+      repository: devopsflow999/crud-backend
       tag: sha-initialprodtag
     replicaCount: 3
     strategyType: Canary
   version: 1.0.0
 images:
-- name: devopsflow999/crud-frontend
-  newName: devopsflow999/crud-frontend
+- name: devopsflow999/crud-backend
+  newName: devopsflow999/crud-backend
   newTag: v1.0.1
