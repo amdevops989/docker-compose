@@ -11,9 +11,9 @@ spec:
     - name: backend-route # MUST match the route name in your backend Rollout spec
       match:
         - uri:
-            prefix: /api
+            prefix: /api/items
       rewrite:
-        uri: /
+        uri: /items
       route:
         - destination:
             host: {{ .Release.Name }}-stable
