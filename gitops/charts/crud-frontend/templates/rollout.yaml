@@ -23,12 +23,13 @@ spec:
   strategy:
     {{- if eq .Values.strategyType "Canary" }}
     canary:
-      stableService: {{ .Release.Name }}-stable
-      canaryService: {{ .Release.Name }}-canary
+      # FIXED: Added '-frontend-' to match your VirtualService and Service destinations
+      stableService: {{ .Release.Name }}-frontend-stable
+      canaryService: {{ .Release.Name }}-frontend-canary
       trafficRouting:
         istio:
           virtualService:
-            name: {{ .Release.Name }}-frontend-vservice # Updated target
+            name: {{ .Release.Name }}-frontend-vservice
             routes:
               - frontend-route
       steps:
