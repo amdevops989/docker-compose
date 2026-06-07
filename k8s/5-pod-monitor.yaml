@@ -10,6 +10,7 @@ spec:
   namespaceSelector:
     matchNames:
       - default
+      - production
   selector:
     matchLabels:
       security.istio.io/tlsMode: istio
