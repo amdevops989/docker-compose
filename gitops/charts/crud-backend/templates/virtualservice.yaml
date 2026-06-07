@@ -16,12 +16,12 @@ spec:
         uri: /
       route:
         - destination:
-            host: {{ .Release.Name }}-backend-stable
+            host: {{ .Release.Name }}-stable
             port:
               number: 3000
           weight: 100
         - destination:
-            host: {{ .Release.Name }}-backend-canary
+            host: {{ .Release.Name }}-canary
             port:
               number: 3000
           weight: 0
